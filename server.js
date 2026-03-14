@@ -14,7 +14,6 @@ const io = new Server(server, {
   }
 })
 
-// Stockage des rooms en mémoire
 const rooms = {}
 
 io.on("connection", (socket) => {
@@ -25,7 +24,7 @@ io.on("connection", (socket) => {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase()
     rooms[roomCode] = {
       players: [{ id: socket.id, name: playerName, ready: false }],
-      gameState: null
+      states: {}
     }
     socket.join(roomCode)
     socket.emit("room_created", { roomCode })
@@ -47,12 +46,22 @@ io.on("connection", (socket) => {
     socket.join(roomCode)
     socket.emit("room_joined", { roomCode, players: room.players })
     io.to(roomCode).emit("player_joined", { players: room.players })
+
+    // Envoyer les états existants au nouveau joueur
+    if (room.states) {
+      for (const [playerId, gameState] of Object.entries(room.states)) {
+        socket.emit("state_updated", { playerId, gameState })
+      }
+    }
+
     console.log(`${playerName} a rejoint la room ${roomCode}`)
   })
 
   // Synchroniser le gameState d'un joueur
   socket.on("sync_state", ({ roomCode, playerId, gameState }) => {
     if (!rooms[roomCode]) return
+    if (!rooms[roomCode].states) rooms[roomCode].states = {}
+    rooms[roomCode].states[playerId] = gameState
     io.to(roomCode).emit("state_updated", { playerId, gameState })
   })
 
@@ -61,6 +70,7 @@ io.on("connection", (socket) => {
     for (const roomCode in rooms) {
       const room = rooms[roomCode]
       room.players = room.players.filter(p => p.id !== socket.id)
+      if (room.states) delete room.states[socket.id]
       if (room.players.length === 0) {
         delete rooms[roomCode]
       } else {
