@@ -57,6 +57,14 @@ io.on("connection", (socket) => {
     console.log(`${playerName} a rejoint la room ${roomCode}`)
   })
 
+  socket.on("request_states", ({ roomCode }) => {
+  const room = rooms[roomCode]
+  if (!room || !room.states) return
+  for (const [playerId, gameState] of Object.entries(room.states)) {
+    socket.emit("state_updated", { playerId, gameState })
+  }
+})
+
   // Synchroniser le gameState d'un joueur
   socket.on("sync_state", ({ roomCode, playerId, gameState }) => {
     if (!rooms[roomCode]) return
